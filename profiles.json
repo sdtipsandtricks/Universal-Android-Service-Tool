@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "instructions": "Add only profiles with upstream-confirmed hardware testing. Every field must match exactly. A brand/model/Android-version match is not enough. Keep status='verified' only when exact build and full kernel evidence is published.",
+  "profiles": []
+}
