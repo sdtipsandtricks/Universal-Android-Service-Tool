@@ -394,6 +394,69 @@ class UniversalTool(tk.Tk):
                     write(label + ": ERROR - " + str(exc))
             write("--- Diagnostic completed ---")
 
+        def device_compatibility_summary():
+            serial = get_device()
+            write("\n========== DEVICE COMPATIBILITY & SECURITY SUMMARY ==========")
+
+            if not serial:
+                write("ADB Authorization: WARNING - No authorized device detected")
+                write("Overall: INFO - Connect and authorize an ADB device.")
+                write("============================================================")
+                return
+
+            def read_prop(prop):
+                try:
+                    result = run(
+                        [self.adb, "-s", serial, "shell", "getprop", prop],
+                        timeout=12
+                    )
+                    return result.stdout.strip()
+                except Exception:
+                    return ""
+
+            manufacturer = read_prop("ro.product.manufacturer")
+            model = read_prop("ro.product.model")
+            android = read_prop("ro.build.version.release")
+            sdk = read_prop("ro.build.version.sdk")
+            patch = read_prop("ro.build.version.security_patch")
+            locked = read_prop("ro.boot.flash.locked")
+            vbmeta = read_prop("ro.boot.vbmeta.device_state")
+            verified = read_prop("ro.boot.verifiedbootstate")
+
+            write("Device: " + (manufacturer or "Unknown") + " " + (model or "Unknown"))
+            write("Android Version: " + (android or "Unknown"))
+            write("SDK Level: " + (sdk or "Unknown"))
+            write("Security Patch: " + (patch or "Unknown"))
+            write("ADB Authorization: PASS - Authorized device detected")
+
+            if locked == "1" or vbmeta.lower() == "locked":
+                write("Bootloader: PASS - Reports locked")
+            elif locked == "0" or vbmeta.lower() == "unlocked":
+                write("Bootloader: WARNING - Reports unlocked")
+            else:
+                write("Bootloader: INFO - Status unavailable")
+
+            if verified.lower() == "green":
+                write("Verified Boot: PASS - Green")
+            elif verified:
+                write("Verified Boot: WARNING - " + verified)
+            else:
+                write("Verified Boot: INFO - Status unavailable")
+
+            if patch:
+                write("Security Patch: INFO - Date reported by Android")
+            else:
+                write("Security Patch: WARNING - Date unavailable")
+
+            if android and sdk.isdigit():
+                write("Compatibility: INFO - Android version and SDK detected")
+            else:
+                write("Compatibility: WARNING - Version details incomplete")
+
+            write("Overall: INFO - Diagnostic snapshot only; not a security certification.")
+            write("Root compatibility is not established by these checks.")
+            write("============================================================")
+
         def export_fire_report():
             serial = self.selected_serial() or "Not connected"
             stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -455,6 +518,11 @@ class UniversalTool(tk.Tk):
                     "getprop", "ro.boot.verifiedbootstate"
                 ]),
             ])
+        ).pack(fill="x", pady=3)
+
+        ttk.Button(
+            actions, text="Device Compatibility & Security Summary",
+            command=device_compatibility_summary
         ).pack(fill="x", pady=3)
 
         ttk.Button(
