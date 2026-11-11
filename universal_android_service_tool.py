@@ -394,6 +394,33 @@ class UniversalTool(tk.Tk):
                     write(label + ": ERROR - " + str(exc))
             write("--- Diagnostic completed ---")
 
+        def export_fire_report():
+            serial = self.selected_serial() or "Not connected"
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            path = filedialog.asksaveasfilename(
+                title="Save FIRE Diagnostic Report",
+                initialfile="FIRE_Diagnostic_" + stamp + ".txt",
+                defaultextension=".txt",
+                filetypes=[("Text report", "*.txt")]
+            )
+            if not path:
+                return
+
+            report = (
+                "UNIVERSAL ANDROID SERVICE TOOL - FIRE REPORT\n"
+                "Generated: " + datetime.now().isoformat(timespec="seconds") + "\n"
+                "ADB Device: " + serial + "\n"
+                "============================================\n\n"
+                + output.get("1.0", "end-1c")
+                + "\n\nDiagnostics only. No FRP bypass or authentication changes.\n"
+            )
+            try:
+                with open(path, "w", encoding="utf-8") as report_file:
+                    report_file.write(report)
+                messagebox.showinfo("Report saved", "FIRE report exported successfully.")
+            except Exception as exc:
+                messagebox.showerror("Export failed", str(exc))
+
         actions = ttk.LabelFrame(win, text="Available checks", padding=10)
         actions.pack(fill="x", padx=12, pady=5)
 
@@ -428,6 +455,11 @@ class UniversalTool(tk.Tk):
                     "getprop", "ro.boot.verifiedbootstate"
                 ]),
             ])
+        ).pack(fill="x", pady=3)
+
+        ttk.Button(
+            actions, text="Export Diagnostic Report",
+            command=export_fire_report
         ).pack(fill="x", pady=3)
 
         ttk.Button(
