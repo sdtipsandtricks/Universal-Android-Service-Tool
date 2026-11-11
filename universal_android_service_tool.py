@@ -124,6 +124,8 @@ class UniversalTool(tk.Tk):
         for item in ops:
             ttk.Radiobutton(opbox,text=item,variable=self.operation_var,value=item).pack(anchor="w",pady=8)
         ttk.Button(opbox,text="Process Operation",command=self.process).pack(fill="x",pady=(16,5))
+        ttk.Button(opbox,text="FIRE",command=self.open_fire_module).pack(fill="x",pady=5)
+
         ttk.Button(opbox,text="Open selected upstream guide",command=self.open_upstream).pack(fill="x",pady=4)
         ttk.Label(opbox,text="No FRP / demo bypass\nNo factory reset\nNo bootloader unlock\nNo partition writes or flashing",
                   foreground="#f5c45b",justify="left").pack(anchor="w",pady=(20,4))
@@ -320,6 +322,123 @@ class UniversalTool(tk.Tk):
                 "safety_note":"Diagnostics only. No bootloader unlock, FRP action, exploit execution, partition write or flashing was performed."}
         with open(path,"w",encoding="utf-8") as f: json.dump(report,f,indent=2)
         messagebox.showinfo("Report saved","Diagnostic report exported.")
+
+    def open_fire_module(self):
+        win = tk.Toplevel(self)
+        win.title("FIRE - Device Diagnostics")
+        win.geometry("760x560")
+        win.minsize(620, 440)
+
+        header = ttk.Frame(win, padding=12)
+        header.pack(fill="x")
+        ttk.Label(header, text="FIRE",
+                  font=("Segoe UI", 18, "bold")).pack(side="left")
+        ttk.Label(header, text="ADB Diagnostics & Recovery Guidance",
+                  foreground="#5bd18a").pack(side="left", padx=15)
+
+        info = ttk.LabelFrame(win, text="Device connection", padding=10)
+        info.pack(fill="x", padx=12, pady=5)
+
+        device_label = ttk.Label(info, text="Checking ADB device...")
+        device_label.pack(anchor="w")
+
+        output_box = ttk.LabelFrame(win, text="Diagnostic output", padding=8)
+        output_box.pack(fill="both", expand=True, padx=12, pady=8)
+
+        output = tk.Text(
+            output_box, bg="#101317", fg="#dce5ec",
+            insertbackground="white", font=("Consolas", 10),
+            wrap="word", relief="flat", padx=9, pady=8
+        )
+        output.pack(fill="both", expand=True)
+
+        def write(text):
+            output.insert("end", str(text) + "\n")
+            output.see("end")
+
+        def get_device():
+            if not self.adb:
+                self.refresh_tools()
+            if not self.adb:
+                device_label.config(text="ADB unavailable")
+                write("Install Android SDK Platform-Tools first.")
+                return None
+
+            self.detect_adb(silent=True)
+            serial = self.selected_serial()
+
+            if not serial:
+                device_label.config(text="No authorized ADB device")
+                write("No authorized device. Check USB debugging and authorization.")
+                return None
+
+            device_label.config(text="Connected: " + serial)
+            return serial
+
+        def check(commands):
+            serial = get_device()
+            if not serial:
+                return
+
+            write("\n--- Diagnostic started ---")
+            for label, args in commands:
+                try:
+                    result = run(
+                        [self.adb, "-s", serial, "shell", *args],
+                        timeout=12
+                    )
+                    write(label + ":")
+                    write(result.stdout.strip() or result.stderr.strip()
+                          or "(No response)")
+                except Exception as exc:
+                    write(label + ": ERROR - " + str(exc))
+            write("--- Diagnostic completed ---")
+
+        actions = ttk.LabelFrame(win, text="Available checks", padding=10)
+        actions.pack(fill="x", padx=12, pady=5)
+
+        ttk.Button(
+            actions, text="Detect / Refresh Device",
+            command=get_device
+        ).pack(fill="x", pady=3)
+
+        ttk.Button(
+            actions, text="Read Device Information",
+            command=lambda: check([
+                ("Manufacturer", ["getprop", "ro.product.manufacturer"]),
+                ("Brand", ["getprop", "ro.product.brand"]),
+                ("Model", ["getprop", "ro.product.model"]),
+                ("Android Version", ["getprop", "ro.build.version.release"]),
+                ("Build ID", ["getprop", "ro.build.display.id"]),
+                ("Security Patch", ["getprop", "ro.build.version.security_patch"]),
+            ])
+        ).pack(fill="x", pady=3)
+
+        ttk.Button(
+            actions, text="Security & Setup Diagnostics",
+            command=lambda: check([
+                ("ADB identity", ["id"]),
+                ("Device provisioned", [
+                    "settings", "get", "global", "device_provisioned"
+                ]),
+                ("User setup status", [
+                    "settings", "get", "secure", "user_setup_complete"
+                ]),
+                ("Verified Boot State", [
+                    "getprop", "ro.boot.verifiedbootstate"
+                ]),
+            ])
+        ).pack(fill="x", pady=3)
+
+        ttk.Button(
+            actions, text="Clear Output",
+            command=lambda: output.delete("1.0", "end")
+        ).pack(fill="x", pady=3)
+
+        write("FIRE module initialized.")
+        write("Diagnostics only: no FRP bypass or authentication changes.")
+        write("Public ADB properties cannot reliably confirm FRP lock status.")
+        get_device()
 
     def about(self):
         messagebox.showinfo("Safety and scope",
